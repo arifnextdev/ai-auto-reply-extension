@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Auto Reply</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">🤖</div>
+    <h1>AI Auto Reply</h1>
+    <span class="version">v1.0.0</span>
+  </div>
+
+  <!-- Status Banner -->
+  <div id="statusBanner" class="status-banner inactive">
+    <div class="status-dot"></div>
+    <span id="statusText">Auto Reply is OFF</span>
+  </div>
+
+  <!-- Toggle -->
+  <div class="toggle-section">
+    <span class="toggle-label">Enable Auto Reply</span>
+    <label class="toggle-switch">
+      <input type="checkbox" id="toggleAutoReply">
+      <span class="toggle-slider"></span>
+    </label>
+  </div>
+
+  <!-- API Key -->
+  <div class="section">
+    <div class="section-title">API Configuration</div>
+    <div class="input-group">
+      <label for="apiKey">Gemini API Key</label>
+      <input type="password" id="apiKey" placeholder="Enter your Google Gemini API key">
+      <div class="hint">Get your key at <a href="https://aistudio.google.com/app/apikey" target="_blank" style="color:#667eea;">Google AI Studio</a></div>
+    </div>
+  </div>
+
+  <!-- Custom Prompt -->
+  <div class="collapsible" id="promptSection">
+    <div class="collapsible-header" data-target="promptSection">
+      <span>Custom AI Prompt</span>
+      <span class="collapsible-arrow">▶</span>
+    </div>
+    <div class="collapsible-body">
+      <div class="input-group">
+        <label for="systemPrompt">System Prompt</label>
+        <textarea id="systemPrompt" rows="3" placeholder="You are a helpful customer support assistant. Reply politely and briefly to the following customer message."></textarea>
+        <div class="hint">Customize how the AI responds to messages</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Reply Delay -->
+  <div class="collapsible" id="delaySection">
+    <div class="collapsible-header" data-target="delaySection">
+      <span>Reply Delay</span>
+      <span class="collapsible-arrow">▶</span>
+    </div>
+    <div class="collapsible-body">
+      <div class="range-group">
+        <label>
+          Delay before reply
+          <span id="delayValue">3s</span>
+        </label>
+        <input type="range" id="replyDelay" min="1" max="10" value="3" step="1">
+      </div>
+      <div class="hint">Add a delay to make replies look more natural</div>
+    </div>
+  </div>
+
+  <!-- Keyword Rules -->
+  <div class="collapsible" id="keywordSection">
+    <div class="collapsible-header" data-target="keywordSection">
+      <span>Keyword Auto Replies</span>
+      <span class="collapsible-arrow">▶</span>
+    </div>
+    <div class="collapsible-body">
+      <div id="keywordRules">
+        <!-- Dynamic keyword rules go here -->
+      </div>
+      <button class="btn-add-rule" id="btnAddRule">+ Add Keyword Rule</button>
+      <div class="hint" style="margin-top:8px;">If a message contains the keyword, the canned reply is sent instead of calling AI</div>
+    </div>
+  </div>
+
+  <!-- CRM Webhook -->
+  <div class="collapsible" id="webhookSection">
+    <div class="collapsible-header" data-target="webhookSection">
+      <span>CRM Webhook</span>
+      <span class="collapsible-arrow">▶</span>
+    </div>
+    <div class="collapsible-body">
+      <div class="input-group">
+        <label for="webhookUrl">Webhook URL</label>
+        <input type="url" id="webhookUrl" placeholder="https://your-crm.com/webhook">
+        <div class="hint">POST conversation data (incoming message + AI reply) to this URL</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Button -->
+  <button class="btn-save" id="btnSave">Save Settings</button>
+  <div class="save-feedback" id="saveFeedback">✓ Settings saved successfully</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
