@@ -72,7 +72,7 @@
 	function detectPlatform() {
 		const url = window.location.href;
 		if (url.includes("web.whatsapp.com")) return "whatsapp";
-		if (url.includes("facebook.com/messages") || url.includes("messenger.com"))
+		if (url.includes("facebook.com") || url.includes("messenger.com"))
 			return "messenger";
 		return null;
 	}
@@ -120,22 +120,28 @@
 	// ─── Wait for Chat UI ─────────────────────────────────────────────────────────
 	function waitForChatUI() {
 		LOG("Waiting for chat UI to load...");
-		let attempts = 0;
 
+		if (platform === "messenger") {
+			// Facebook/Messenger: inject button immediately (chat popups load dynamically)
+			injectAIButton();
+			LOG("Messenger/Facebook detected — button injected immediately.");
+			return;
+		}
+
+		// WhatsApp: wait for the footer/input area
+		let attempts = 0;
 		const interval = setInterval(() => {
 			attempts++;
 
 			const footer =
-				platform === "whatsapp"
-					? document.querySelector("#main footer") ||
-						document.querySelector("footer")
-					: document.querySelector('div[role="main"]');
+				document.querySelector("#main footer") ||
+				document.querySelector("footer");
 
 			if (footer) {
 				clearInterval(interval);
-				LOG("Chat UI found. Injecting AI button.");
+				LOG("WhatsApp chat UI found. Injecting AI button.");
 				injectAIButton();
-				if (platform === "whatsapp") watchForChatSwitch();
+				watchForChatSwitch();
 			} else if (attempts >= 120) {
 				clearInterval(interval);
 				WARN("Chat UI not found after 60s. Will use body observer.");
@@ -146,19 +152,17 @@
 		}, 500);
 	}
 
-	// ─── Fallback: Observe body until chat appears ───────────────────────────────
+	// ─── Fallback: Observe body until chat appears (WhatsApp only) ───────────────
 	function observeBodyForChat() {
 		const bodyObserver = new MutationObserver(() => {
 			const footer =
-				platform === "whatsapp"
-					? document.querySelector("#main footer") ||
-						document.querySelector("footer")
-					: document.querySelector('div[role="main"]');
+				document.querySelector("#main footer") ||
+				document.querySelector("footer");
 			if (footer) {
 				bodyObserver.disconnect();
 				LOG("Chat UI appeared via body observer.");
 				injectAIButton();
-				if (platform === "whatsapp") watchForChatSwitch();
+				watchForChatSwitch();
 			}
 		});
 		bodyObserver.observe(document.body, { childList: true, subtree: true });
@@ -346,10 +350,25 @@
 					if (inputBox) break;
 				}
 			} else {
-				inputBox =
-					document.querySelector(
-						'div[contenteditable="true"][role="textbox"]',
-					) || document.querySelector('div[contenteditable="true"]');
+				// Facebook chat popup & Messenger — try multiple selectors
+				const fbInputSelectors = [
+					'div[contenteditable="true"][role="textbox"]',
+					'div[contenteditable="true"][aria-label*="Message"]',
+					'div[contenteditable="true"][aria-label*="message"]',
+					'p[contenteditable="true"]',
+					'div[role="main"] div[contenteditable="true"]',
+					'div[contenteditable="true"]',
+				];
+				for (const sel of fbInputSelectors) {
+					const all = document.querySelectorAll(sel);
+					if (all.length > 0) {
+						inputBox = all[all.length - 1];
+						LOG(
+							`FB input found with: ${sel} (${all.length} matches, using last)`,
+						);
+						break;
+					}
+				}
 			}
 
 			if (!inputBox) {
@@ -367,9 +386,10 @@
 				document.execCommand("selectAll", false, null);
 				document.execCommand("insertText", false, replyText);
 			} else {
-				inputBox.textContent = replyText;
+				// Facebook/Messenger: use execCommand for better compatibility
+				document.execCommand("selectAll", false, null);
+				document.execCommand("insertText", false, replyText);
 				inputBox.dispatchEvent(new Event("input", { bubbles: true }));
-				inputBox.dispatchEvent(new Event("change", { bubbles: true }));
 			}
 
 			return true;
@@ -414,17 +434,58 @@
 				});
 			}
 		} else {
-			// Messenger
-			const rows = document.querySelectorAll('div[role="row"]');
-			const recent = Array.from(rows).slice(-maxMessages);
+			// Facebook chat popup & Messenger
+			// Try multiple container selectors
+			let messageDivs = [];
 
-			for (const row of recent) {
-				const messageDiv = row.querySelector('div[dir="auto"]');
-				if (!messageDiv) continue;
-				const text = messageDiv.innerText?.trim();
+			// Method 1: div[role="row"] (messenger.com)
+			const rows = document.querySelectorAll('div[role="row"]');
+			if (rows.length > 0) {
+				for (const row of rows) {
+					const md = row.querySelector('div[dir="auto"]');
+					if (md && md.innerText?.trim()) messageDivs.push(md);
+				}
+			}
+
+			// Method 2: Facebook chat popup — all div[dir="auto"] inside message-like containers
+			if (messageDivs.length === 0) {
+				const allDirAuto = document.querySelectorAll('div[dir="auto"]');
+				for (const el of allDirAuto) {
+					const text = el.innerText?.trim();
+					// Filter: must have text, not be too long (skip page content), skip very short (<2 chars)
+					if (text && text.length >= 2 && text.length < 500) {
+						// Check if it's inside a chat-like container (not main page content)
+						const parent = el.closest(
+							'[role="dialog"], [role="complementary"], [aria-label*="chat"], [aria-label*="Chat"], [class*="chat"], [data-testid]',
+						);
+						if (parent) {
+							messageDivs.push(el);
+						}
+					}
+				}
+			}
+
+			// Method 3: Broadest fallback — find all spans/divs with dir="auto" that look like messages
+			if (messageDivs.length === 0) {
+				const allText = document.querySelectorAll(
+					'span[dir="auto"], div[dir="auto"]',
+				);
+				for (const el of allText) {
+					const text = el.innerText?.trim();
+					if (text && text.length >= 2 && text.length < 500) {
+						messageDivs.push(el);
+					}
+				}
+			}
+
+			const recent = messageDivs.slice(-maxMessages);
+
+			for (const md of recent) {
+				const text = md.innerText?.trim();
 				if (!text) continue;
 
-				const bubble = messageDiv.closest("div[class]");
+				// Determine if outgoing by checking bubble background color
+				const bubble = md.closest("div[class]");
 				let isOutgoing = false;
 				if (bubble) {
 					const bgColor = window.getComputedStyle(bubble).backgroundColor;
